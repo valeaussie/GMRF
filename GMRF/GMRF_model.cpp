@@ -16,13 +16,15 @@
 
 
 const int nu = 4; //dimension of the square grid
-const int mu = nu * nu; //number of columns (and rows) of the precision matrix
-const int adj = 8; //the number of maximum adjacent elements in a grid
+const int mu = nu * nu; //number of columns (or rows) of the precision matrix
+const int adj = 8; //the number of maximum adjacent elements in a grid (the degree)
+Eigen::SparseMatrix<double> Q; //the precision matrix
+std::vector < double > X(mu); //the GMRF vector
+
+
 
 Eigen::SparseMatrix<double> Precision(int dim_grid, int param_beta);
-std::vector < double > Chol(int dim_grid, Eigen::SparseMatrix < double > Prec_Q);
-
-std::vector < double > X(mu); //the GMRF vector
+std::vector < double > Chol_and_LTsol(int dim_grid, Eigen::SparseMatrix < double > Prec_Q);
 
 
 int GMRF_model() {
@@ -30,10 +32,10 @@ int GMRF_model() {
 	GMRF_func();//calls the file with all the functions
 	
 	//create the precision matrix
-	Eigen::SparseMatrix<double> Q = Precision(nu, adj);
+	Q = Precision(nu, adj);
 
 	//Cholesky decomposition Q = LL^T ad solution of L^T x = z 
-	X = Chol(nu, Q);
+	X = Chol_and_LTsol(nu, Q);
 
 
 	//creates a dat file with the values of X called "GMRF_vector_X.dat"

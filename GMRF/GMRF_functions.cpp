@@ -15,10 +15,6 @@
 
 using namespace std;
 
-void F_print_matrix(vector < vector < int > > m);
-void F_print_matrix(vector < vector < double > > M);
-void F_print_vector(vector < double > v);
-void F_print_vector(vector < int > v);
 
 int GMRF_func() {
 
@@ -149,53 +145,101 @@ Eigen::SparseMatrix<double> Precision(int dim_grid, int adj_var) {
 
 
 //Cholesky decomposition Q = LL^T ad solution of L^T x = z 
-std::vector < double > Chol(int dim_grid, Eigen::SparseMatrix<double> Prec_Q) {
+std::vector < double > Chol_and_LTsol(int dim_grid, Eigen::SparseMatrix<double> Prec_Q) {
 
 	int dim_prec = dim_grid * dim_grid;
 	std::vector < double > GMRF_vec(dim_prec, 0);
-	//class to sample from a multivariate normal distribution with mean zero
-	struct normal_random_variable
-	{
-		normal_random_variable(Eigen::MatrixXd const& covar)
-			: normal_random_variable(Eigen::VectorXd::Zero(covar.rows()), covar)
-		{}
-
-		normal_random_variable(Eigen::VectorXd const& mean, Eigen::MatrixXd const& covar)
-			: mean(mean)
-		{
-			Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigenSolver(covar);
-			transform = eigenSolver.eigenvectors() * eigenSolver.eigenvalues().cwiseSqrt().asDiagonal();
-		}
-
-		Eigen::VectorXd mean;
-		Eigen::MatrixXd transform;
-
-		Eigen::VectorXd operator()() const
-		{
-			static std::mt19937 gen{ std::random_device{}() };
-			static std::normal_distribution<> dist;
-
-			return mean + transform * Eigen::VectorXd{ mean.size() }.unaryExpr([&](auto x) { return dist(gen); });
-		}
-	};
 
 	//Sampling z from a standard multivariate normal distribution of size mu
 	Eigen::MatrixXd covar(dim_prec, dim_prec);
-	covar << Eigen::MatrixXd::Identity(dim_prec, dim_prec); //initialise my matris as an identity matrix
+	covar << Eigen::MatrixXd::Identity(dim_prec, dim_prec); //initialise my matrix as an identity matrix
 	normal_random_variable sample{ covar };
 	Eigen::VectorXd z = sample();
 
-
-	//Decomposition of Q = LL^T and solution of L^T x = z 
-	Eigen::SimplicialLLT<Eigen::SparseMatrix<double> > solver;
-	solver.compute(Prec_Q).solve(z); //decomposition
-
-	Eigen::VectorXd x = solver.solve(z); //Solution of L^T x = z 
+	//Decomposition of Q = LL^T and solution of L^T x = z
+	Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Lower, Eigen::NaturalOrdering<int>> choleskyQ;
+	//Eigen::MatrixXd L = choleskyQ.compute(Prec_Q).matrixL();
+	//Eigen::MatrixXd LT = L.transpose();
+	Eigen::VectorXd x = Prec_Q.triangularView<Eigen::Upper>().solve(z); //Solution of L^T x = z 
 
 	//creating an std::vector from Eigen::VectorXd
 	Eigen::Map<Eigen::VectorXd>(GMRF_vec.data(), dim_prec) = x;
 
 	return GMRF_vec;
+}
+
+//Sampling z from a standard multivariate normal distribution of size mu
+Eigen::VectorXd SampleMND(int dim_of_matrix) {
+	Eigen::MatrixXd covar(dim_of_matrix, dim_of_matrix);
+	covar << Eigen::MatrixXd::Identity(dim_of_matrix, dim_of_matrix); //initialise my matrix as an identity matrix
+	normal_random_variable sample{ covar };
+	Eigen::VectorXd z = sample();
+
+	return z;
+}
+
+//Cholesky decomposition Q = LL^T ad solution of L x = z 
+std::vector < double > Chol_and_Lsol( int dim_grid, Eigen::SparseMatrix<double> Prec_Q ) {
+
+	int dim_prec = dim_grid * dim_grid;
+	std::vector < double > GMRF_vec( dim_prec, 0 );
+
+	Eigen::VectorXd z = SampleMND(dim_prec);
+
+	//Sampling z from a standard multivariate normal distribution of size mu
+	//Eigen::MatrixXd covar(dim_prec, dim_prec);
+	//covar << Eigen::MatrixXd::Identity(dim_prec, dim_prec); //initialise my matrix as an identity matrix
+	//normal_random_variable sample{ covar };
+	//Eigen::VectorXd z = sample();
+
+	//Decomposition of Q = LL^T and solution of L x = z
+	Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Lower, Eigen::NaturalOrdering<int>> choleskyQ;
+	//Eigen::MatrixXd L = choleskyQ.compute(Prec_Q).matrixL();
+	Eigen::VectorXd x = Prec_Q.triangularView<Eigen::Lower>().solve(z); //Solution of L x = z 
+
+	//creating an std::vector from Eigen::VectorXd
+	Eigen::Map<Eigen::VectorXd>(GMRF_vec.data(), dim_prec) = x;
+
+	return GMRF_vec;
+}
+
+//creates a patition Q_AA of the (sparse) precision matrix Q for the elements in the set A
+Eigen::SparseMatrix<double> Q_AA(std::vector < int > A, Eigen::SparseMatrix<double> Prec_Q) {
+	int dim_A = A.size();
+	Eigen::SparseMatrix<double> QAA(dim_A, dim_A);
+	QAA.reserve(Eigen::VectorXi::Constant(dim_A, dim_A));
+	for (int i = 0; i < dim_A; i++) {
+		for (int j = 0; j < dim_A; j++) {
+			QAA.coeffRef(i, j) = Prec_Q.coeffRef(A[i], A[j]);
+		}
+	}
+	return QAA;
+}
+
+//creates a patition Q_AB of the (sparse) precision matrix Q for the elements in the set A and in the set B complment of A
+Eigen::SparseMatrix<double> Q_AB(std::vector < int > B, Eigen::SparseMatrix<double> Prec_Q) {
+	//creates a vector v of increasing integers from 1 to the square root of the precision matrix
+	int dim_B = B.size();
+	int max_val = sqrt(Prec_Q.size());
+	int dim_A = max_val - dim_B;
+	std::vector < int > A;
+	std::vector < int > v(max_val, 0);
+	for (int i = 0; i < max_val; i++) {
+		v[i] = i;
+	}
+	//creates a vector B with the elements of v that are not in A
+	std::remove_copy_if(v.begin(), v.end(), std::back_inserter(A),
+		[&B](const int& arg)
+	{ return (std::find(B.begin(), B.end(), arg) != B.end()); });
+	//creates the partition Q_AB
+	Eigen::SparseMatrix<double> QAB(dim_A, dim_B);
+	QAB.reserve(Eigen::VectorXi::Constant(dim_B, 9));
+	for (int i = 0; i < dim_B; i++) {
+		for (int j = 0; j < dim_A; j++) {
+			QAB.coeffRef(j, i) = Prec_Q.coeffRef(A[j], B[i]);
+		}
+	}
+	return QAB;
 }
 
 

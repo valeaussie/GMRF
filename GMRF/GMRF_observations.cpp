@@ -17,9 +17,9 @@ void F_print_vector(std::vector < int > v);
 
 
 
-int max_steps = 10; //number of steps of the random walk
-std::vector < std::vector < double > > mat_Z(max_steps, std::vector <double > (mu, 0)); //the matrix of the state of the observations
-std::vector < int > O(max_steps, -1); //the vector containing the index of the observed elements of the grid
+const int max_steps = 30; //number of steps of the random walk
+std::vector < std::vector < double > > mat_Z(max_steps+1, std::vector <double > (mu, 0)); //the matrix of the state of the observations
+std::vector < int > P(max_steps+1, -1); //the vector containing the index of the observed elements of the grid
 
 
 									  
@@ -90,16 +90,32 @@ int GMRF_obs() {
 		B.push_back(y);
 	}
 
-
+	
 	//translate the x and y coordinates to the vector O of the indexes
+	std::vector < int > O(max_steps + 1, -1);
+	O[0] = 0;
 	for (int k = 0; k < max_steps; k++) {
-		O[k] = B[k] + nu * A[k];
+		P[k + 1] = ( B[k] + nu * A[k] );
+		O[k + 1] = ( B[k] + nu * A[k] );
 	}
+	P[0] = 0;
+	//sort and order this vector for future use
+	sort( P.begin(), P.end() );
+	P.erase(unique(P.begin(), P.end()), P.end());
+	std::cout << "vector P" << std::endl;
+	for (auto i : P) {
+		std::cout << i << std::endl;
+	}
+	std::cout << "vector O" << std::endl;
+	for (auto i : O) {
+		std::cout << i << std::endl;
+	}
+	
 
-
+	
 	//create the matrix of the state of the observations
 	mat_Z[0][0] = X[0];
-	for (int j = 1; j < max_steps; j++) {
+	for (int j = 1; j < max_steps+1; j++) {
 		for (int i = 0; i < mu; i++) {
 			mat_Z[j][i] = mat_Z[j-1][i];
 			mat_Z[j][O[j]] = X[O[j]];
@@ -107,7 +123,7 @@ int GMRF_obs() {
 	}
 
 
-
+	
 	//creates a dat file with the values of the matrix of the state of the observations mat_Z 
 	//called "vector_Z.dat"
 	std::ofstream outFile("./matrix_Z.dat");
@@ -118,7 +134,6 @@ int GMRF_obs() {
 		outFile << std::endl;
 	}
 	outFile.close();
-
 
 	return 0;
 }

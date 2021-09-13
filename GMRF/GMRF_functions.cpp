@@ -56,8 +56,8 @@ void F_print_vector(vector < int > v) {
 //creates the precision matrix (sparse) for any value of the dimension of the grid
 Eigen::SparseMatrix<double> Precision(int dim_grid, int adj_var) {
 
-	float param_beta = 0.3; //1.0 / adj_var;
-	//param_beta = floor(param_beta * 100.0) / 100.0; //this ensures that the precision matrix Q is diagonal dominant
+	float param_beta = 1.0 / adj_var;
+	param_beta = floor(param_beta * 100.0) / 100.0; //this ensures that the precision matrix Q is diagonal dominant
 	//this because Q must be positive definite
 
 	int dim_prec = dim_grid * dim_grid;

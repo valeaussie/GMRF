@@ -260,3 +260,7 @@ paket-files/
 __pycache__/
 *.pyc
 /GMRF/GMRF_vector_X.dat
+/GMRF/GMRF_gold_000.csv
+/GMRF/parameters.csv
+/GMRF/resampled_000.csv
+*.dat

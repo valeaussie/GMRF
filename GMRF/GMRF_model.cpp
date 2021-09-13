@@ -19,7 +19,7 @@ const int nu = 4; //dimension of the square grid
 const int mu = nu * nu; //number of columns (or rows) of the precision matrix
 const int adj = 8; //the number of maximum adjacent elements in a grid (the degree)
 Eigen::SparseMatrix<double> Q; //the precision matrix
-std::vector < double > X(mu); //the GMRF vector
+std::vector < double > X; //the GMRF vector
 
 
 

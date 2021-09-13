@@ -56,8 +56,8 @@ void F_print_vector(vector < int > v) {
 //creates the precision matrix (sparse) for any value of the dimension of the grid
 Eigen::SparseMatrix<double> Precision(int dim_grid, int adj_var) {
 
-	float param_beta = 1.0 / adj_var;
-	param_beta = floor(param_beta * 100.0) / 100.0; //this ensures that the precision matrix Q is diagonal dominant
+	float param_beta = 0.3; //1.0 / adj_var;
+	//param_beta = floor(param_beta * 100.0) / 100.0; //this ensures that the precision matrix Q is diagonal dominant
 	//this because Q must be positive definite
 
 	int dim_prec = dim_grid * dim_grid;
@@ -144,31 +144,8 @@ Eigen::SparseMatrix<double> Precision(int dim_grid, int adj_var) {
 }
 
 
-//Cholesky decomposition Q = LL^T ad solution of L^T x = z 
-std::vector < double > Chol_and_LTsol(int dim_grid, Eigen::SparseMatrix<double> Prec_Q) {
 
-	int dim_prec = dim_grid * dim_grid;
-	std::vector < double > GMRF_vec(dim_prec, 0);
-
-	//Sampling z from a standard multivariate normal distribution of size mu
-	Eigen::MatrixXd covar(dim_prec, dim_prec);
-	covar << Eigen::MatrixXd::Identity(dim_prec, dim_prec); //initialise my matrix as an identity matrix
-	normal_random_variable sample{ covar };
-	Eigen::VectorXd z = sample();
-
-	//Decomposition of Q = LL^T and solution of L^T x = z
-	Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Lower, Eigen::NaturalOrdering<int>> choleskyQ;
-	//Eigen::MatrixXd L = choleskyQ.compute(Prec_Q).matrixL();
-	//Eigen::MatrixXd LT = L.transpose();
-	Eigen::VectorXd x = Prec_Q.triangularView<Eigen::Upper>().solve(z); //Solution of L^T x = z 
-
-	//creating an std::vector from Eigen::VectorXd
-	Eigen::Map<Eigen::VectorXd>(GMRF_vec.data(), dim_prec) = x;
-
-	return GMRF_vec;
-}
-
-//Sampling z from a standard multivariate normal distribution of size mu
+//Sampling z from a standard multivariate normal distribution of size "dim_of_matrix"
 Eigen::VectorXd SampleMND(int dim_of_matrix) {
 	Eigen::MatrixXd covar(dim_of_matrix, dim_of_matrix);
 	covar << Eigen::MatrixXd::Identity(dim_of_matrix, dim_of_matrix); //initialise my matrix as an identity matrix
@@ -178,23 +155,55 @@ Eigen::VectorXd SampleMND(int dim_of_matrix) {
 	return z;
 }
 
-//Cholesky decomposition Q = LL^T ad solution of L x = z 
+
+
+//Cholesky decomposition Q = LL^T ad solution of L^T x = z. Outputs an Std::vector
+std::vector < double > Chol_and_LTsol(int dim_grid, Eigen::SparseMatrix<double> Prec_Q) {
+
+	int dim_prec = dim_grid * dim_grid;
+	std::vector < double > GMRF_vec(dim_prec, 0);
+
+	//Sampling z from a standard multivariate normal distribution of size mu
+	Eigen::VectorXd z = SampleMND(dim_prec);
+
+	//Decomposition of Q = LL^T and solution of L^T x = z
+	Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Lower, Eigen::NaturalOrdering<int>> choleskyQ;
+	Eigen::VectorXd x = Prec_Q.triangularView<Eigen::Upper>().solve(z); //Solution of L^T x = z 
+
+	//creating an std::vector from Eigen::VectorXd
+	Eigen::Map<Eigen::VectorXd>(GMRF_vec.data(), dim_prec) = x;
+
+	return GMRF_vec;
+}
+
+//Cholesky decomposition Q = LL^T ad solution of L^T x = z. Outputs an Eigen::vector
+Eigen::VectorXd Chol_and_LTsol_eigen(int dim_grid, Eigen::SparseMatrix<double> Prec_Q) {
+
+	int dim_prec = dim_grid * dim_grid;
+
+	//Sampling z from a standard multivariate normal distribution of size mu
+	Eigen::VectorXd z = SampleMND(dim_prec);
+
+	//Decomposition of Q = LL^T and solution of L^T x = z
+	Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Lower, Eigen::NaturalOrdering<int>> choleskyQ;
+	Eigen::VectorXd x = Prec_Q.triangularView<Eigen::Upper>().solve(z); //Solution of L^T x = z 
+
+	return x;
+}
+
+
+
+//Cholesky decomposition Q = LL^T ad solution of L x = z. Outputs an Std::vector
 std::vector < double > Chol_and_Lsol( int dim_grid, Eigen::SparseMatrix<double> Prec_Q ) {
 
 	int dim_prec = dim_grid * dim_grid;
-	std::vector < double > GMRF_vec( dim_prec, 0 );
-
-	Eigen::VectorXd z = SampleMND(dim_prec);
+	std::vector < double > GMRF_vec( dim_prec, 0.0 );
 
 	//Sampling z from a standard multivariate normal distribution of size mu
-	//Eigen::MatrixXd covar(dim_prec, dim_prec);
-	//covar << Eigen::MatrixXd::Identity(dim_prec, dim_prec); //initialise my matrix as an identity matrix
-	//normal_random_variable sample{ covar };
-	//Eigen::VectorXd z = sample();
+	Eigen::VectorXd z = SampleMND(dim_prec);
 
 	//Decomposition of Q = LL^T and solution of L x = z
 	Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Lower, Eigen::NaturalOrdering<int>> choleskyQ;
-	//Eigen::MatrixXd L = choleskyQ.compute(Prec_Q).matrixL();
 	Eigen::VectorXd x = Prec_Q.triangularView<Eigen::Lower>().solve(z); //Solution of L x = z 
 
 	//creating an std::vector from Eigen::VectorXd
@@ -203,8 +212,26 @@ std::vector < double > Chol_and_Lsol( int dim_grid, Eigen::SparseMatrix<double> 
 	return GMRF_vec;
 }
 
+
+//Cholesky decomposition Q = LL^T ad solution of L x = z. Outputs an Eigen::vector
+Eigen::VectorXd Chol_and_Lsol_eigen(int dim_grid, Eigen::SparseMatrix<double> Prec_Q) {
+
+	int dim_prec = dim_grid * dim_grid;
+
+	//Sampling z from a standard multivariate normal distribution of size mu
+	Eigen::VectorXd z = SampleMND(dim_prec);
+
+	//Decomposition of Q = LL^T and solution of L x = z
+	Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Lower, Eigen::NaturalOrdering<int>> choleskyQ;
+	Eigen::VectorXd x = Prec_Q.triangularView<Eigen::Lower>().solve(z); //Solution of L x = z 
+
+	return x;
+}
+
+
+
 //creates a patition Q_AA of the (sparse) precision matrix Q for the elements in the set A
-Eigen::SparseMatrix<double> Q_AA(std::vector < int > A, Eigen::SparseMatrix<double> Prec_Q) {
+Eigen::SparseMatrix<double> Q_AA(std::vector < double > A, Eigen::SparseMatrix<double> Prec_Q) {
 	int dim_A = A.size();
 	Eigen::SparseMatrix<double> QAA(dim_A, dim_A);
 	QAA.reserve(Eigen::VectorXi::Constant(dim_A, dim_A));
@@ -216,19 +243,22 @@ Eigen::SparseMatrix<double> Q_AA(std::vector < int > A, Eigen::SparseMatrix<doub
 	return QAA;
 }
 
-//creates a patition Q_AB of the (sparse) precision matrix Q for the elements in the set A and in the set B complment of A
-Eigen::SparseMatrix<double> Q_AB(std::vector < int > B, Eigen::SparseMatrix<double> Prec_Q) {
+
+
+
+//creates a patition Q_AB of the (sparse) precision matrix Q
+Eigen::SparseMatrix<double> Q_AB(std::vector < double > B, Eigen::SparseMatrix<double> Prec_Q) {
 	//creates a vector v of increasing integers from 1 to the square root of the precision matrix
 	int dim_B = B.size();
 	int max_val = sqrt(Prec_Q.size());
 	int dim_A = max_val - dim_B;
-	std::vector < int > A;
-	std::vector < int > v(max_val, 0);
+	std::vector < double > A;
+	std::vector < double > v(max_val, 0);
 	for (int i = 0; i < max_val; i++) {
 		v[i] = i;
 	}
-	//creates a vector B with the elements of v that are not in A
-	std::remove_copy_if(v.begin(), v.end(), std::back_inserter(A),
+	//creates a vector A with the elements of v that are not in B
+	std::remove_copy_if(v.begin(), v.end(), std::back_inserter(A), 
 		[&B](const int& arg)
 	{ return (std::find(B.begin(), B.end(), arg) != B.end()); });
 	//creates the partition Q_AB

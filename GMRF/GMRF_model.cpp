@@ -11,20 +11,21 @@
 #include <cmath>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
+#include <Eigen/Eigenvalues>
 
 
 
 
 const int nu = 4; //dimension of the square grid
 const int mu = nu * nu; //number of columns (or rows) of the precision matrix
-const int adj = 8; //the number of maximum adjacent elements in a grid (the degree)
-Eigen::SparseMatrix<double> Q; //the precision matrix
+const int adj = 4; //the number of maximum adjacent elements in a grid (the degree)
+Eigen::SparseMatrix < double > Q; //the precision matrix
 std::vector < double > X; //the GMRF vector
 
 
 
-Eigen::SparseMatrix<double> Precision(int dim_grid, int param_beta);
-std::vector < double > Chol_and_LTsol(int dim_grid, Eigen::SparseMatrix < double > Prec_Q);
+Eigen::SparseMatrix < double > Precision( int dim_grid, int param_beta );
+std::vector < double > Chol_and_LTsol( int dim_grid, Eigen::SparseMatrix < double > Prec_Q );
 
 
 int GMRF_model() {
@@ -44,6 +45,14 @@ int GMRF_model() {
 		outFile << n << std::endl;
 	}
 	outFile.close();
+
+	Eigen::MatrixXd denseQ = Eigen::MatrixXd(Q);
+	Eigen::EigenSolver < Eigen::MatrixXd > ei;
+	ei.compute(denseQ);
+	std::cout << "The eigenvalues of Q are:" << std::endl;
+	std::cout << ei.eigenvalues() << std::endl;
+
+	std::cout << Q << std::endl;
 
 	
 	return 0;

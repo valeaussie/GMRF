@@ -50,8 +50,6 @@ int GMRF_gold() {
 	for (int i : P) {
 		obs.push_back(X[i]);
 	}
-	std::cout << "obs" << std::endl;
-	for (double i : obs) {std::cout << i << std::endl;}
 
 	int obs_size = obs.size();
 	double* ptr4 = &obs[0];
@@ -59,15 +57,8 @@ int GMRF_gold() {
 	
 	
 	//calculate the mean
-	Eigen::MatrixXd pippo = -(denseQAA.inverse() * denseQAB);
 	Eigen::VectorXd mean = -(denseQAA.inverse() * denseQAB) * obs_eigen;
 
-
-
-
-
-
-	
 	//typecast Eigen to std
 	std::vector < double > mean_std(mean.size(), 0.0);
 	Eigen::Map<Eigen::VectorXd>(mean_std.data(), mean.size()) = mean;

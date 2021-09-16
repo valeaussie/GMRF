@@ -13,9 +13,11 @@ extern const int nu; //dimension of the square grid
 extern const int mu; //number of columns (and rows) of the precision matrix (nu*nu)
 extern const int adj; //number of maximum adjacent elements in a grid
 extern int steps; //number of steps of the random walk
+extern const int max_steps; //number of max steps of the random walk
 extern Eigen::SparseMatrix<double> Q; //Precision matrix
 extern std::vector < double > X; //GMRF vector
 extern std::vector < double > P; //the vector containing the index of the observed elements of the grid
+extern std::vector < double > O; //the vector containing the index of the max observed elements of the grid
 extern std::vector < std::vector < double > > mat_Z; //matrix of the state of the observations
 
 

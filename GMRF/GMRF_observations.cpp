@@ -14,13 +14,15 @@ void F_print_matrix(std::vector < std::vector < int > > m);
 void F_print_matrix(std::vector < std::vector < double > > M);
 void F_print_vector(std::vector < double > v);
 void F_print_vector(std::vector < int > v);
+void remove(std::vector<double> &v);
 
 
 
-const int max_steps = 30; //number of steps of the random walk
+const int max_steps = 20; //number of steps of the random walk
 int steps; //total number of element observed
 std::vector < std::vector < double > > mat_Z(max_steps+1, std::vector < double > (mu, 0)); //the matrix of the state of the observations
-std::vector < double > P(max_steps+1, -1); //the vector containing the index of the observed elements of the grid
+std::vector < double > P(max_steps + 1, -1); //the vector containing the index of the observed elements of the grid
+std::vector < double > O(max_steps + 1, -1); //this vector contains the indexes of all observations at all times
 
 
 									  
@@ -93,38 +95,29 @@ int GMRF_obs() {
 
 	
 	//translate the x and y coordinates to the vector O of the indexes
-	std::vector < double > O(max_steps + 1, -1); //this vector contains the indexes of all observations at all times
 	O[0] = 0;
 	P[0] = 0; //this vector contains the indexes of the observed elements
 	for (double k = 0; k < max_steps; k++) {
 		P[k + 1] = ( B[k] + nu * A[k] );
 		O[k + 1] = ( B[k] + nu * A[k] );
 	}
-	//sort and order this vector for future use
-	std::cout << "O " << std::endl;
-	for (double i : O) { std::cout << i << ","; }
 
-	sort( P.begin(), P.end() );
-	P.erase(unique(P.begin(), P.end()), P.end());
-
-	std::cout << "P " << std::endl;
-	for (double i : P) { std::cout << i << ","; }
+	//remove duplicates from vector O this vector for future use
+	remove(P);
 
 	// set the total number of element observed
 	steps = P.size();
 	
 	//create the matrix of the state of the observations
 	mat_Z[0][0] = X[0];
-	for (int j = 1; j < steps; j++) {
+	for (int j = 1; j < max_steps+1; j++) {
 		for (int i = 0; i < mu; i++) {
 			mat_Z[j][i] = mat_Z[j-1][i];
-			mat_Z[j][P[j]] = X[P[j]];
+			mat_Z[j][O[j]] = X[O[j]];
 		}
 	}
 
-	std::cout << "O" << std::endl;
-	for (double i : O) { std::cout << i << std::endl; }
-
+	
 
 	
 	//creates a dat file with the values of the matrix of the state of the observations mat_Z 
@@ -142,7 +135,7 @@ int GMRF_obs() {
 	//at the current time N calling it "vector_Z.dat"
 	std::ofstream outFile1("./vector_Z.dat");
 	//outFile1 << endl;
-	for (double n : mat_Z[steps - 1]) {
+	for (double n : mat_Z[max_steps]) {
 		outFile1 << n << std::endl;
 	}
 	outFile1.close();

@@ -50,15 +50,29 @@ void F_print_vector(vector < int > v) {
 	cout << endl;
 }
 
+//Remove duplicates from a vector
+void remove(std::vector<double> &v)
+{
+	auto end = v.end();
+	for (auto it = v.begin(); it != end; ++it) {
+		end = std::remove(it + 1, end, *it);
+	}
+
+	v.erase(end, v.end());
+}
+
+
 
 //*********** GMRF SPECIFIC FUNCTIONS ************
+
 
 //creates the precision matrix (sparse) for any value of the dimension of the grid
 Eigen::SparseMatrix<double> Precision(int dim_grid, int adj_var) {
 
-	float param_beta = 1.0 / adj_var;
-	param_beta = floor(param_beta * 100.0) / 100.0; //this ensures that the precision matrix Q is diagonal dominant
+	float param_beta = 0.12;// 1.0 / adj_var;
+	//param_beta = floor(param_beta * 100.0) / 100.0; //this ensures that the precision matrix Q is diagonal dominant
 	//this because Q must be positive definite
+
 
 	int dim_prec = dim_grid * dim_grid;
 	Eigen::SparseMatrix<double> Q(dim_prec, dim_prec);
@@ -144,6 +158,99 @@ Eigen::SparseMatrix<double> Precision(int dim_grid, int adj_var) {
 }
 
 
+/*
+//creates the precision matrix (sparse) for any value of the dimension of the grid
+Eigen::SparseMatrix<double> Precision(int dim_grid, int adj_var) {
+
+	float param_beta = 0.5;// 1.0 / adj_var;
+	//param_beta = floor(param_beta * 100.0) / 100.0; //this ensures that the precision matrix Q is diagonal dominant
+	//this because Q must be positive definite
+
+	
+	int dim_prec = dim_grid * dim_grid;
+	Eigen::SparseMatrix<double> Q(dim_prec, dim_prec);
+	Q.reserve(Eigen::VectorXi::Constant(dim_prec, 9));
+	for (int i = 0; i < dim_prec; i++) {
+		for (int j = 0; j < dim_prec; j++) {
+			Q.coeffRef(i, i) = 1;
+		}
+	}
+	for (int i = 0; i < dim_prec; i++) {
+		for (int j = 0; j < dim_prec; j++) {
+			for (int k = 1; k < dim_grid - 1; k++) {
+				for (int i = (dim_grid*k) + 1; i < (k + 1)*dim_grid - 1; i++) {
+					for (int j = 0; j < dim_prec; j++) {
+						Q.coeffRef(i, i - 1) = -param_beta;
+						Q.coeffRef(i, i + 1) = -param_beta;
+						Q.coeffRef(i, i - dim_grid) = -param_beta;
+						Q.coeffRef(i, i - dim_grid - 1) = -param_beta;
+						Q.coeffRef(i, i - dim_grid + 1) = -param_beta;
+						Q.coeffRef(i, i + dim_grid) = -param_beta;
+						Q.coeffRef(i, i + dim_grid - 1) = -param_beta;
+						Q.coeffRef(i, i + dim_grid + 1) = -param_beta;
+					}
+				}
+			}
+		}
+	}
+	for (int i = 0; i < dim_prec; i++) {
+		for (int j = 0; j < dim_prec; j++) {
+			if (i == 0) {
+				Q.coeffRef(i, i + 1) = -param_beta;
+				Q.coeffRef(i, i + dim_grid) = -param_beta;
+				Q.coeffRef(i, i + dim_grid + 1) = -param_beta;
+			}
+			if (i == dim_grid - 1) {
+				Q.coeffRef(i, i - 1) = -param_beta;
+				Q.coeffRef(i, i + dim_grid) = -param_beta;
+				Q.coeffRef(i, i + dim_grid - 1) = -param_beta;
+			}
+			if (i == dim_prec - 1) {
+				Q.coeffRef(i, i - 1) = -param_beta;
+				Q.coeffRef(i, i - dim_grid) = -param_beta;
+				Q.coeffRef(i, i - dim_grid - 1) = -param_beta;
+			}
+			if (i == dim_prec - dim_grid) {
+				Q.coeffRef(i, i + 1) = -param_beta;
+				Q.coeffRef(i, i - dim_grid) = -param_beta;
+				Q.coeffRef(i, i - dim_grid + 1) = -param_beta;
+			}
+			for (int k = 1; k < dim_grid - 1; k++) {
+				if (i == k) {
+					Q.coeffRef(i, i - 1) = -param_beta;
+					Q.coeffRef(i, i + 1) = -param_beta;
+					Q.coeffRef(i, i + dim_grid) = -param_beta;
+					Q.coeffRef(i, i + dim_grid - 1) = -param_beta;
+					Q.coeffRef(i, i + dim_grid + 1) = -param_beta;
+				}
+				if (i == (k + 1)*dim_grid - 1) {
+					Q.coeffRef(i, i - 1) = -param_beta;
+					Q.coeffRef(i, i - dim_grid) = -param_beta;
+					Q.coeffRef(i, i - dim_grid - 1) = -param_beta;
+					Q.coeffRef(i, i + dim_grid) = -param_beta;
+					Q.coeffRef(i, i + dim_grid - 1) = -param_beta;
+				}
+				if (i == dim_prec - k - 1) {
+					Q.coeffRef(i, i - 1) = -param_beta;
+					Q.coeffRef(i, i + 1) = -param_beta;
+					Q.coeffRef(i, i - dim_grid) = -param_beta;
+					Q.coeffRef(i, i - dim_grid - 1) = -param_beta;
+					Q.coeffRef(i, i - dim_grid + 1) = -param_beta;
+				}
+				if (i == dim_prec - (k + 1)*dim_grid) {
+					Q.coeffRef(i, i + 1) = -param_beta;
+					Q.coeffRef(i, i - dim_grid) = -param_beta;
+					Q.coeffRef(i, i - dim_grid + 1) = -param_beta;
+					Q.coeffRef(i, i + dim_grid) = -param_beta;
+					Q.coeffRef(i, i + dim_grid + 1) = -param_beta;
+				}
+			}
+		}
+	}
+	return Q;
+}
+*/
+
 
 //Sampling z from a standard multivariate normal distribution of size "dim_of_matrix"
 Eigen::VectorXd SampleMND(int dim_of_matrix) {
@@ -172,6 +279,11 @@ std::vector < double > Chol_and_LTsol(int dim_grid, Eigen::SparseMatrix<double> 
 
 	//creating an std::vector from Eigen::VectorXd
 	Eigen::Map<Eigen::VectorXd>(GMRF_vec.data(), dim_prec) = x;
+
+	/******************test to see if mean shifts *************/
+	//for (int i = 0; i < dim_prec; i++) {
+	//	GMRF_vec[i] = GMRF_vec[i] + 1;
+	//}
 
 	return GMRF_vec;
 }
@@ -253,16 +365,16 @@ Eigen::SparseMatrix<double> Q_AB(std::vector < double > B, Eigen::SparseMatrix<d
 	int max_val = sqrt(Prec_Q.size());
 	int dim_A = max_val - dim_B;
 	std::vector < double > A;
-	std::vector < double > v(max_val, 0);
-	for (int i = 0; i < max_val; i++) {
+	std::vector < double > v( max_val, 0 );
+	for ( int i = 0; i < max_val; i++ ) {
 		v[i] = i;
 	}
 	//creates a vector A with the elements of v that are not in B
-	std::remove_copy_if(v.begin(), v.end(), std::back_inserter(A), 
-		[&B](const int& arg)
-	{ return (std::find(B.begin(), B.end(), arg) != B.end()); });
+	std::remove_copy_if( v.begin(), v.end(), std::back_inserter(A), 
+		[&B](const int& arg )
+	{ return ( std::find( B.begin(), B.end(), arg ) != B.end() ); } );
 	//creates the partition Q_AB
-	Eigen::SparseMatrix<double> QAB(dim_A, dim_B);
+	Eigen::SparseMatrix < double > QAB(dim_A, dim_B);
 	QAB.reserve(Eigen::VectorXi::Constant(dim_B, 9));
 	for (int i = 0; i < dim_B; i++) {
 		for (int j = 0; j < dim_A; j++) {

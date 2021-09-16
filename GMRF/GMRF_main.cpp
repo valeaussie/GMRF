@@ -31,19 +31,13 @@ Eigen::VectorXd SampleMND(int dim_of_matrix);
 
 int main() {
 
-
 	GMRF_func(); //calls the file with all the functions
 	GMRF_model();  //simulates the Gaussian Markov Random Field
 	GMRF_obs(); //simulate the state of the observations
 
 	int n = 1000; //number of particles
 
-	//define the container for the sampled events and the sampled observations (0s and 1s)
-	std::vector < std::vector < std::vector < double > > > sample(steps, 
-		std::vector < std::vector < double > >(mu, std::vector < double >(n, 0.0)));
-	//define the container for the new sampled events and the new sampled observations (0s and 1s)
-	std::vector < std::vector < std::vector < double > > > corr_sample(steps, 
-		std::vector < std::vector < double > >(mu, std::vector < double >(n, 0.0)));
+
 	std::vector < std::vector < std::vector < double > > > resampled(steps, 
 		std::vector < std::vector < double > >(mu, std::vector < double >(n, 0.0)));
 	//define and initialise the containter for the unnormalised weights
@@ -73,59 +67,51 @@ int main() {
 	for (int k = 0; k < n; k++) {
 		un_weights[k][0] = 1; //set equal weights at time 1
 		weights[k][0] = 1.0 / n; //normalise the weights
-		for (int j = 0; j < mu; j++) {
-			for (int i = 0; i < steps; i++) {
-				sample[i][j][k] = mat_sim(k, j);
+		for (int i = 0; i < steps; i++) {
+			resampled[i][0][k] = X[0];
+			for (int j = 1; j < mu; j++) {
 				resampled[i][j][k] = mat_sim(k, j);
-				corr_sample[i][j][k] = mat_sim(k, j);
 			}
-		}	
+		}
 	}
 
-
+	//typecast X into eigen
+	int X_size = X.size();
+	double* ptr3 = &X[0];
+	Eigen::Map<Eigen::VectorXd> X_eigen(ptr3, X_size);
 	
-	//Iterate
+	/*********Iterate********/
 	for (int j = 1; j < steps; j++) {
+		int o = P[j]; // index of observed element at time j
+		//vector with the indexes of the observed elements up to now (j-1)
+		std::vector < double > obs_now;
+		for (int l = 0; l < j; l++) {
+			obs_now.push_back(P[l]);
+		}
 		for (int i = 0; i < n; i++) {
-			std::vector < double > sum_vec;
-			for (int k = 0; k < mu; k++) {
-				sample[j][k][i] = resampled[j - 1][k][i]; //copy elements from previus time of 'resampled'  
-				corr_sample[j][k][i] = resampled[j - 1][k][i]; //copy elements from previus time of 'resampled'
-			}
-			corr_sample[j][j][i] = sample[j][j][i];
-			//make corrections
-			for (int k = 0; k < mu; k++) {
-				if (mat_Z[j][k] != 0) {
-					corr_sample[j][k][i] = mat_Z[j][k];
-				}
-			}
-			//calculate the weights
+
 			
-			//typecast X into eigen
-			int X_size = X.size();
-			double* ptr3 = &X[0];
-			Eigen::Map<Eigen::VectorXd> X_eigen(ptr3, X_size);
+			/*********calculate the weights********/
 
-			int o = P[j]; // index of observed element at time j
-
+			//fill vector sim
 			Eigen::VectorXd sim(mu);
-			sim = mat_sim.row(i).transpose();
-
+			for (int k = 0; k < mu; k++) {
+				sim(k) = resampled[j-1][k][i];
+			}
+			
 			//calculating weight for particle i at time j
-			double w = exp((denseQ.row(o) * sim - sim(o)) * (sim(o) - X_eigen(o))
-				+ (1 / 2) * (pow(sim(o), 2) - pow(X_eigen(o), 2)));
+			double w = exp(+ (denseQ.row(o) * sim - sim(o) ) * ( sim(o) - (X_eigen(o)) )
+				+ (1 / 2) * ( (pow(sim(o), 2) - pow((X_eigen(o)), 2) ) ) );
 			un_weights[i][j] = w; //insert in matrix weigths
 		}
-		
+
+		//normalise the weights
+		double sum_of_weights{ 0 };
 		for (int i = 0; i < n; i++) {
-			//normalise the weights
-			double sum_of_weights{ 0 };
-			for (int i = 0; i < n; i++) {
-				sum_of_weights = sum_of_weights + un_weights[i][j];
-			}
-			for (int i = 0; i < n; i++) {
-				weights[i][j] = un_weights[i][j] / sum_of_weights;
-			}
+			sum_of_weights = sum_of_weights + un_weights[i][j];
+		}
+		for (int i = 0; i < n; i++) {
+			weights[i][j] = un_weights[i][j] / sum_of_weights;
 		}
 
 		//resampling
@@ -133,34 +119,42 @@ int main() {
 		for (int i = 0; i < n; i++) {
 			drawing_vector[i] = weights[i][j];
 		}
-		for (int i = 0; i < n; i++) {
-			for (int k = 0; k < j + 1; k++) {
-				resampled[j][k][i] = corr_sample[j][k][i];
-			}
-		}
+
+		double index_resampled;
 		for (int i = 0; i < n; i++) {
 			std::discrete_distribution < int > discrete(drawing_vector.begin(), drawing_vector.end());
-			resampled[j][j][discrete(generator)];
+			index_resampled = discrete(generator);
+			for (int k = 0; k < mu; k++) {
+				resampled[j][k][i] = resampled[j-1][k][index_resampled];
+			}
+			for (int k = 0; k < size(obs_now); k++) {
+				resampled[j][obs_now[k]][i] = X[obs_now[k]];
+			}
+			resampled[j][o][i] = X[o];
 		}
-	}
-
-	for (int i = 0; i < mu; i++) {
-		std::cout << resampled[steps-1][i][0] << std::endl;
 	}
 
 	std::ofstream outFile("./resampled_000.csv");
 	outFile << std::endl;
-	std::vector < std::vector < double > > tresampled(mu, std::vector < double >(n, 0.0));
 	for (int i = 0; i < n; i++) {
 		for (int j = 0; j < mu; j++) {
-			tresampled[j][i] = resampled[steps - 1][j][i];
-			outFile << tresampled[j][i] << ",";
+			outFile << resampled[steps-1][j][i] << ",";
 		}
 		outFile << std::endl;
 	}
 	outFile.close();
-	
 
+
+	std::ofstream outFile2("./weights.csv");
+	outFile2 << std::endl;
+	for (int i = 0; i < n; i++) {
+		for (int j = 0; j < steps; j++) {
+			outFile2 << weights[i][j] << ",";
+		}
+		outFile2 << std::endl;
+	}
+	outFile2.close();
+	
 
 
 	/*
@@ -211,8 +205,8 @@ int main() {
 
 	//create a .csv file containing the parameters
 	std::ofstream outparam("./parameters.csv");
-	outparam << "mu" << "," << "steps" << "," << "part" << std::endl;
-	outparam << mu << "," << steps << "," << n << "," << std::endl;
+	outparam << "mu" << "," << "max_steps" << "," << "part" << std::endl;
+	outparam << mu << "," << max_steps << "," << n << "," << std::endl;
 	outparam.close();
 
 

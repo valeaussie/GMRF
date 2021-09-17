@@ -18,7 +18,7 @@ void remove(std::vector<double> &v);
 
 
 
-const int max_steps = 20; //number of steps of the random walk
+const int max_steps = 6; //number of steps of the random walk
 int steps; //total number of element observed
 std::vector < std::vector < double > > mat_Z(max_steps+1, std::vector < double > (mu, 0)); //the matrix of the state of the observations
 std::vector < double > P(max_steps + 1, -1); //the vector containing the index of the observed elements of the grid

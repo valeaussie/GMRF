@@ -35,7 +35,7 @@ int main() {
 	GMRF_model();  //simulates the Gaussian Markov Random Field
 	GMRF_obs(); //simulate the state of the observations
 
-	int n = 1000; //number of particles
+	int n = 10000; //number of particles
 
 
 	std::vector < std::vector < std::vector < double > > > resampled(steps, 
@@ -64,15 +64,15 @@ int main() {
 
 
 	//initialize:
-	for (int k = 0; k < n; k++) {
-		un_weights[k][0] = 1; //set equal weights at time 1
-		weights[k][0] = 1.0 / n; //normalise the weights
-		for (int i = 0; i < steps; i++) {
-			resampled[i][0][k] = X[0];
-			for (int j = 1; j < mu; j++) {
-				resampled[i][j][k] = mat_sim(k, j);
+	for (int i = 0; i < n; i++) {
+		un_weights[i][0] = 1; //set equal weights at time 1
+		weights[i][0] = 1.0 / n; //normalise the weights
+		//for (int i = 0; i < steps; i++) {
+			resampled[0][0][i] = X[0];
+			for (int k = 1; k < mu; k++) {
+				resampled[0][k][i] = mat_sim(i, k);
 			}
-		}
+		//}
 	}
 
 	//typecast X into eigen
@@ -88,20 +88,30 @@ int main() {
 		for (int l = 0; l < j; l++) {
 			obs_now.push_back(P[l]);
 		}
+
+		//populate the resample vector from previous time
 		for (int i = 0; i < n; i++) {
+			for (int k = 0; k < mu; k++) {
+				resampled[j][k][i] = resampled[j - 1][k][i];
+			}
+		}
 
-			
-			/*********calculate the weights********/
+		/*********make correction********/
+		for (int i = 0; i < n; i++) {
+			resampled[j][o][i] = X[o];
+		}
 
+		/*********calculate the weights********/
+		for (int i = 0; i < n; i++) {
 			//fill vector sim
 			Eigen::VectorXd sim(mu);
 			for (int k = 0; k < mu; k++) {
-				sim(k) = resampled[j-1][k][i];
+				sim(k) = resampled[j-1][k][i]; //populate Eigen::vector sim
 			}
 			
-			//calculating weight for particle i at time j
-			double w = exp(+ (denseQ.row(o) * sim - sim(o) ) * ( sim(o) - (X_eigen(o)) )
-				+ (1 / 2) * ( (pow(sim(o), 2) - pow((X_eigen(o)), 2) ) ) );
+			//calculate weights for particle i at time j
+			double w = exp( (denseQ.row(o) * sim - sim(o) ) * ( sim(o) - X_eigen(o) )
+				+ (1 / 2) * ( (pow(sim(o), 2) - pow(X_eigen(o), 2) ) ) );
 			un_weights[i][j] = w; //insert in matrix weigths
 		}
 
@@ -121,16 +131,22 @@ int main() {
 		}
 
 		double index_resampled;
+		std::vector < int > vec_index;
 		for (int i = 0; i < n; i++) {
 			std::discrete_distribution < int > discrete(drawing_vector.begin(), drawing_vector.end());
 			index_resampled = discrete(generator);
+			vec_index.push_back(index_resampled);
+		}
+		std::vector < std::vector < double > > newmatrix(mu, std::vector < double >(n, 0.0));
+		for (int i = 0; i < n; i++) {
 			for (int k = 0; k < mu; k++) {
-				resampled[j][k][i] = resampled[j-1][k][index_resampled];
+				newmatrix[k][i] = resampled[j][k][vec_index[i]];
 			}
-			for (int k = 0; k < size(obs_now); k++) {
-				resampled[j][obs_now[k]][i] = X[obs_now[k]];
+		}
+		for (int i = 0; i < n; i++) {
+			for (int k = 0; k < mu; k++) {
+				resampled[j][k][i] = newmatrix[k][i];
 			}
-			resampled[j][o][i] = X[o];
 		}
 	}
 
@@ -143,6 +159,16 @@ int main() {
 		outFile << std::endl;
 	}
 	outFile.close();
+
+	std::ofstream outFile3("./resampled_001.csv");
+	outFile3 << std::endl;
+	for (int i = 0; i < n; i++) {
+		for (int j = 0; j < mu; j++) {
+			outFile3 << resampled[1][j][i] << ",";
+		}
+		outFile3 << std::endl;
+	}
+	outFile3.close();
 
 
 	std::ofstream outFile2("./weights.csv");

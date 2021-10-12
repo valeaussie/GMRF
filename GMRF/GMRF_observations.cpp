@@ -14,15 +14,16 @@ void F_print_matrix(std::vector < std::vector < int > > m);
 void F_print_matrix(std::vector < std::vector < double > > M);
 void F_print_vector(std::vector < double > v);
 void F_print_vector(std::vector < int > v);
-void remove(std::vector<double> &v);
+void remove_duplicates(std::vector<double> &v);
 
 
 
-const int max_steps = 6; //number of steps of the random walk
+
+const int max_steps = 5; //number of steps of the random walk
 int steps; //total number of element observed
-std::vector < std::vector < double > > mat_Z(max_steps+1, std::vector < double > (mu, 0)); //the matrix of the state of the observations
-std::vector < double > P(max_steps + 1, -1); //the vector containing the index of the observed elements of the grid
-std::vector < double > O(max_steps + 1, -1); //this vector contains the indexes of all observations at all times
+std::vector < std::vector < double > > mat_Z(max_steps+1, std::vector < double > (dim_prec, 0)); //the matrix of the state of the observations
+std::vector < double > P(max_steps +1, -1); //the vector containing the index of the observed elements of the grid
+std::vector < double > O(max_steps +1, -1); //this vector contains the indexes of all observations at all times
 
 
 									  
@@ -30,8 +31,8 @@ std::vector < double > O(max_steps + 1, -1); //this vector contains the indexes 
 int GMRF_obs() {
 
 	std::random_device rd; // create random device to seed generator
-	std::mt19937 gen(rd()); // create generator with random seed
-	std::uniform_real_distribution < double > uni(0., 1); // init uniform dist on (0,1]
+	std::mt19937 gen( rd() ); // create generator with random seed
+	std::uniform_real_distribution < double > uni(0.0, 1); // init uniform dist on (0,1]
 
 	int x, y; //positions
 	int current_step = 0;
@@ -58,7 +59,7 @@ int GMRF_obs() {
 			}
 			else {
 				// step right
-				if (x != nu-1) {
+				if (x != dim_grid - 1) {
 					x = x + 1;
 				}
 				else {
@@ -79,7 +80,7 @@ int GMRF_obs() {
 			}
 			else {
 				// step up
-				if (y != nu-1) {
+				if (y != dim_grid - 1) {
 					y = y + 1;
 				}
 				else {
@@ -98,12 +99,12 @@ int GMRF_obs() {
 	O[0] = 0;
 	P[0] = 0; //this vector contains the indexes of the observed elements
 	for (double k = 0; k < max_steps; k++) {
-		P[k + 1] = ( B[k] + nu * A[k] );
-		O[k + 1] = ( B[k] + nu * A[k] );
+		P[k + 1] = ( B[k] + dim_grid * A[k] );
+		O[k + 1] = ( B[k] + dim_grid * A[k] );
 	}
 
 	//remove duplicates from vector O this vector for future use
-	remove(P);
+	remove_duplicates(P);
 
 	// set the total number of element observed
 	steps = P.size();
@@ -111,7 +112,7 @@ int GMRF_obs() {
 	//create the matrix of the state of the observations
 	mat_Z[0][0] = X[0];
 	for (int j = 1; j < max_steps+1; j++) {
-		for (int i = 0; i < mu; i++) {
+		for (int i = 0; i < dim_prec; i++) {
 			mat_Z[j][i] = mat_Z[j-1][i];
 			mat_Z[j][O[j]] = X[O[j]];
 		}

@@ -352,3 +352,12 @@ __pycache__/
 /GMRF/weights_example.xlsx
 /GMRF/weights.csv
 /GMRF/resampled_001.csv
+/GMRF/Runs002(circular)/weights_circular_003.csv
+/GMRF/Runs002(circular)/resampled_001_circular_003.csv
+/GMRF/Runs002(circular)/resampled_000_circular_003.csv
+/GMRF/Runs002(circular)/parameters_circular_003.xlsx
+/GMRF/Runs002(circular)/parameters_circular_003.csv
+/GMRF/Runs002(circular)/GMRF_gold_000_circular_003.csv
+/GMRF/un_weights.csv
+/GMRF/sampled.csv
+/GMRF/Runs002(circular)/data_circulant_003.xlsx

@@ -6,11 +6,11 @@
 #include <fstream>
 #include <map>
 #include <algorithm>
+#include <unordered_set>
 #include <math.h>
 #include "GMRF_header.h"
 #include "numeric"
 #include <Eigen/Dense>
-#include <Eigen/Sparse>
 
 
 using namespace std;
@@ -51,7 +51,7 @@ void F_print_vector(vector < int > v) {
 }
 
 //Remove duplicates from a vector
-void remove(std::vector<double> &v)
+void remove_duplicates(std::vector<double> &v)
 {
 	auto end = v.end();
 	for (auto it = v.begin(); it != end; ++it) {
@@ -61,95 +61,103 @@ void remove(std::vector<double> &v)
 	v.erase(end, v.end());
 }
 
+//Remove elements of one vector from another vector
+void remove_intersection(std::vector<double>& a, std::vector<double>& b) {
+	std::unordered_multiset<double> st;
+	st.insert(a.begin(), a.end());
+	st.insert(b.begin(), b.end());
+	auto predicate = [&st](const double& k) { return st.count(k) > 1; };
+	a.erase(std::remove_if(a.begin(), a.end(), predicate), a.end());
+}
 
-
-//*********** GMRF SPECIFIC FUNCTIONS ************
 
 
 //creates the precision matrix (sparse) for any value of the dimension of the grid
-Eigen::SparseMatrix<double> Precision(int dim_grid, int adj_var) {
+Eigen::MatrixXd Precision(int dim_grid) {
 
-	float param_beta = 0.15;// 1.0 / adj_var;
-	//param_beta = floor(param_beta * 100.0) / 100.0; //this ensures that the precision matrix Q is diagonal dominant
-	//this because Q must be positive definite
-
+	float param_delta = 0.01;
 
 	int dim_prec = dim_grid * dim_grid;
-	Eigen::SparseMatrix<double> Q(dim_prec, dim_prec);
-	Q.reserve(Eigen::VectorXi::Constant(dim_prec, 9));
+	Eigen::MatrixXd Q = Eigen::MatrixXd::Zero(dim_prec, dim_prec);
 	for (int i = 0; i < dim_prec; i++) {
 		for (int j = 0; j < dim_prec; j++) {
-			Q.coeffRef(i, i) = 1;
+			Q(i, i) = 4 + param_delta;
 		}
 	}
+	// central elements of the grid
 	for (int i = 0; i < dim_prec; i++) {
 		for (int j = 0; j < dim_prec; j++) {
 			for (int k = 1; k < dim_grid - 1; k++) {
-				for (int i = (dim_grid*k) + 1; i < (k + 1)*dim_grid - 1; i++) {
+				for (int i = (dim_grid*k) + 1; i < (k + 1) * dim_grid - 1; i++) {
 					for (int j = 0; j < dim_prec; j++) {
-						Q.coeffRef(i, i - 1) = -param_beta;
-						Q.coeffRef(i, i + 1) = -param_beta;
-						Q.coeffRef(i, i - dim_grid) = -param_beta;
-						Q.coeffRef(i, i - dim_grid - 1) = -param_beta;
-						Q.coeffRef(i, i - dim_grid + 1) = -param_beta;
-						Q.coeffRef(i, i + dim_grid) = -param_beta;
-						Q.coeffRef(i, i + dim_grid - 1) = -param_beta;
-						Q.coeffRef(i, i + dim_grid + 1) = -param_beta;
+						Q(i, i - 1) = -1;
+						Q(i, i + 1) = -1;
+						Q(i, i - dim_grid) = -1;
+						Q(i, i + dim_grid) = -1;
 					}
 				}
 			}
 		}
 	}
+	// corners of the grid
 	for (int i = 0; i < dim_prec; i++) {
 		for (int j = 0; j < dim_prec; j++) {
+			// top left corner
 			if (i == 0) {
-				Q.coeffRef(i, i + 1) = -param_beta;
-				Q.coeffRef(i, i + dim_grid) = -param_beta;
-				Q.coeffRef(i, i + dim_grid + 1) = -param_beta;
+				Q(i, i + 1) = -1;
+				Q(i, i + dim_grid) = -1;
+				Q(i, i + dim_grid - 1) = -1; // circular
+				Q(i, dim_prec - dim_grid) = -1; // circular
 			}
+			// top right corner
 			if (i == dim_grid - 1) {
-				Q.coeffRef(i, i - 1) = -param_beta;
-				Q.coeffRef(i, i + dim_grid) = -param_beta;
-				Q.coeffRef(i, i + dim_grid - 1) = -param_beta;
+				Q(i, i - 1) = -1;
+				Q(i, i + dim_grid) = -1;
+				Q(i, dim_grid - 1 - i) = -1; // circular
+				Q(i, dim_prec - 1) = -1; // circular
 			}
+			// bottom right corner
 			if (i == dim_prec - 1) {
-				Q.coeffRef(i, i - 1) = -param_beta;
-				Q.coeffRef(i, i - dim_grid) = -param_beta;
-				Q.coeffRef(i, i - dim_grid - 1) = -param_beta;
+				Q(i, i - 1) = -1;
+				Q(i, i - dim_grid) = -1;
+				Q(i, i - dim_grid + 1) = -1; // circular
+				Q(i, dim_grid - 1) = -1; // circular
 			}
+			//bottom left corner
 			if (i == dim_prec - dim_grid) {
-				Q.coeffRef(i, i + 1) = -param_beta;
-				Q.coeffRef(i, i - dim_grid) = -param_beta;
-				Q.coeffRef(i, i - dim_grid + 1) = -param_beta;
+				Q(i, i + 1) = -1;
+				Q(i, i - dim_grid) = -1;
+				Q(i, i + dim_grid - 1) = -1; // circular
+				Q(i, 0) = -1; // circular
 			}
 			for (int k = 1; k < dim_grid - 1; k++) {
+				// top side
 				if (i == k) {
-					Q.coeffRef(i, i - 1) = -param_beta;
-					Q.coeffRef(i, i + 1) = -param_beta;
-					Q.coeffRef(i, i + dim_grid) = -param_beta;
-					Q.coeffRef(i, i + dim_grid - 1) = -param_beta;
-					Q.coeffRef(i, i + dim_grid + 1) = -param_beta;
+					Q(i, i - 1) = -1;
+					Q(i, i + 1) = -1;
+					Q(i, i + dim_grid) = -1;
+					Q(i, (dim_prec - dim_grid) + i) = -1; // circular
 				}
-				if (i == (k + 1)*dim_grid - 1) {
-					Q.coeffRef(i, i - 1) = -param_beta;
-					Q.coeffRef(i, i - dim_grid) = -param_beta;
-					Q.coeffRef(i, i - dim_grid - 1) = -param_beta;
-					Q.coeffRef(i, i + dim_grid) = -param_beta;
-					Q.coeffRef(i, i + dim_grid - 1) = -param_beta;
+				// right side
+				if (i == (k + 1) * dim_grid - 1) {
+					Q(i, i - 1) = -1;
+					Q(i, i - dim_grid) = -1;
+					Q(i, i - dim_grid + 1) = -1; // circular
+					Q(i, i + dim_grid) = -1;
 				}
+				// bottom side
 				if (i == dim_prec - k - 1) {
-					Q.coeffRef(i, i - 1) = -param_beta;
-					Q.coeffRef(i, i + 1) = -param_beta;
-					Q.coeffRef(i, i - dim_grid) = -param_beta;
-					Q.coeffRef(i, i - dim_grid - 1) = -param_beta;
-					Q.coeffRef(i, i - dim_grid + 1) = -param_beta;
+					Q(i, i - 1) = -1;
+					Q(i, i + 1) = -1;
+					Q(i, i - dim_grid) = -1;
+					Q(i, dim_grid - k - 1) = -1; // circular
 				}
-				if (i == dim_prec - (k + 1)*dim_grid) {
-					Q.coeffRef(i, i + 1) = -param_beta;
-					Q.coeffRef(i, i - dim_grid) = -param_beta;
-					Q.coeffRef(i, i - dim_grid + 1) = -param_beta;
-					Q.coeffRef(i, i + dim_grid) = -param_beta;
-					Q.coeffRef(i, i + dim_grid + 1) = -param_beta;
+				// left side
+				if (i == dim_prec - (k + 1) * dim_grid) {
+					Q(i, i + 1) = -1;
+					Q(i, i - dim_grid) = -1;
+					Q(i, i + dim_grid - 1) = -1; // circular
+					Q(i, i + dim_grid) = -1;
 				}
 			}
 		}
@@ -157,148 +165,59 @@ Eigen::SparseMatrix<double> Precision(int dim_grid, int adj_var) {
 	return Q;
 }
 
-
-/*
-//creates the precision matrix (sparse) for any value of the dimension of the grid
-Eigen::SparseMatrix<double> Precision(int dim_grid, int adj_var) {
-
-	float param_beta = 0.5;// 1.0 / adj_var;
-	//param_beta = floor(param_beta * 100.0) / 100.0; //this ensures that the precision matrix Q is diagonal dominant
-	//this because Q must be positive definite
-
-	
-	int dim_prec = dim_grid * dim_grid;
-	Eigen::SparseMatrix<double> Q(dim_prec, dim_prec);
-	Q.reserve(Eigen::VectorXi::Constant(dim_prec, 9));
-	for (int i = 0; i < dim_prec; i++) {
-		for (int j = 0; j < dim_prec; j++) {
-			Q.coeffRef(i, i) = 1;
-		}
-	}
-	for (int i = 0; i < dim_prec; i++) {
-		for (int j = 0; j < dim_prec; j++) {
-			for (int k = 1; k < dim_grid - 1; k++) {
-				for (int i = (dim_grid*k) + 1; i < (k + 1)*dim_grid - 1; i++) {
-					for (int j = 0; j < dim_prec; j++) {
-						Q.coeffRef(i, i - 1) = -param_beta;
-						Q.coeffRef(i, i + 1) = -param_beta;
-						Q.coeffRef(i, i - dim_grid) = -param_beta;
-						Q.coeffRef(i, i - dim_grid - 1) = -param_beta;
-						Q.coeffRef(i, i - dim_grid + 1) = -param_beta;
-						Q.coeffRef(i, i + dim_grid) = -param_beta;
-						Q.coeffRef(i, i + dim_grid - 1) = -param_beta;
-						Q.coeffRef(i, i + dim_grid + 1) = -param_beta;
-					}
-				}
-			}
-		}
-	}
-	for (int i = 0; i < dim_prec; i++) {
-		for (int j = 0; j < dim_prec; j++) {
-			if (i == 0) {
-				Q.coeffRef(i, i + 1) = -param_beta;
-				Q.coeffRef(i, i + dim_grid) = -param_beta;
-				Q.coeffRef(i, i + dim_grid + 1) = -param_beta;
-			}
-			if (i == dim_grid - 1) {
-				Q.coeffRef(i, i - 1) = -param_beta;
-				Q.coeffRef(i, i + dim_grid) = -param_beta;
-				Q.coeffRef(i, i + dim_grid - 1) = -param_beta;
-			}
-			if (i == dim_prec - 1) {
-				Q.coeffRef(i, i - 1) = -param_beta;
-				Q.coeffRef(i, i - dim_grid) = -param_beta;
-				Q.coeffRef(i, i - dim_grid - 1) = -param_beta;
-			}
-			if (i == dim_prec - dim_grid) {
-				Q.coeffRef(i, i + 1) = -param_beta;
-				Q.coeffRef(i, i - dim_grid) = -param_beta;
-				Q.coeffRef(i, i - dim_grid + 1) = -param_beta;
-			}
-			for (int k = 1; k < dim_grid - 1; k++) {
-				if (i == k) {
-					Q.coeffRef(i, i - 1) = -param_beta;
-					Q.coeffRef(i, i + 1) = -param_beta;
-					Q.coeffRef(i, i + dim_grid) = -param_beta;
-					Q.coeffRef(i, i + dim_grid - 1) = -param_beta;
-					Q.coeffRef(i, i + dim_grid + 1) = -param_beta;
-				}
-				if (i == (k + 1)*dim_grid - 1) {
-					Q.coeffRef(i, i - 1) = -param_beta;
-					Q.coeffRef(i, i - dim_grid) = -param_beta;
-					Q.coeffRef(i, i - dim_grid - 1) = -param_beta;
-					Q.coeffRef(i, i + dim_grid) = -param_beta;
-					Q.coeffRef(i, i + dim_grid - 1) = -param_beta;
-				}
-				if (i == dim_prec - k - 1) {
-					Q.coeffRef(i, i - 1) = -param_beta;
-					Q.coeffRef(i, i + 1) = -param_beta;
-					Q.coeffRef(i, i - dim_grid) = -param_beta;
-					Q.coeffRef(i, i - dim_grid - 1) = -param_beta;
-					Q.coeffRef(i, i - dim_grid + 1) = -param_beta;
-				}
-				if (i == dim_prec - (k + 1)*dim_grid) {
-					Q.coeffRef(i, i + 1) = -param_beta;
-					Q.coeffRef(i, i - dim_grid) = -param_beta;
-					Q.coeffRef(i, i - dim_grid + 1) = -param_beta;
-					Q.coeffRef(i, i + dim_grid) = -param_beta;
-					Q.coeffRef(i, i + dim_grid + 1) = -param_beta;
-				}
-			}
-		}
-	}
-	return Q;
-}
-*/
-
-
-//Sampling z from a standard multivariate normal distribution of size "dim_of_matrix"
-Eigen::VectorXd SampleMND(int dim_of_matrix) {
-	Eigen::MatrixXd covar(dim_of_matrix, dim_of_matrix);
-	covar << Eigen::MatrixXd::Identity(dim_of_matrix, dim_of_matrix); //initialise my matrix as an identity matrix
-	normal_random_variable sample{ covar };
-	Eigen::VectorXd z = sample();
-
-	return z;
-}
 
 
 
 //Cholesky decomposition Q = LL^T ad solution of L^T x = z. Outputs an Std::vector
-std::vector < double > Chol_and_LTsol(int dim_grid, Eigen::SparseMatrix<double> Prec_Q) {
+std::vector < double > Chol_and_LTsol(int DimGrid, Eigen::MatrixXd Prec_Q) {
 
-	int dim_prec = dim_grid * dim_grid;
+	int dim_prec = DimGrid * DimGrid;
 	std::vector < double > GMRF_vec(dim_prec, 0);
 
 	//Sampling z from a standard multivariate normal distribution of size mu
-	Eigen::VectorXd z = SampleMND(dim_prec);
+	//Eigen::VectorXd z = SampleMND(dim_prec);
+	
+	std::random_device rd;
+	std::mt19937 generator(rd());
 
-	//Decomposition of Q = LL^T and solution of L^T x = z
-	Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Lower, Eigen::NaturalOrdering<int>> choleskyQ;
-	Eigen::VectorXd x = Prec_Q.triangularView<Eigen::Upper>().solve(z); //Solution of L^T x = z 
+	Eigen::VectorXd z = Eigen::VectorXd::Zero(dim_prec);
+	for (int ind = 0; ind < dim_prec; ind++) {
+		std::normal_distribution < double > normal{0, 1};
+		z(ind) = normal(generator);
+	}
+
+
+	Eigen::LLT<Eigen::MatrixXd> lltOfQ(Prec_Q);
+	Eigen::MatrixXd U = lltOfQ.matrixU();
+	Eigen::VectorXd x = U.colPivHouseholderQr().solve(z);
 
 	//creating an std::vector from Eigen::VectorXd
 	Eigen::Map<Eigen::VectorXd>(GMRF_vec.data(), dim_prec) = x;
 
-	/******************test to see if mean shifts *************/
-	//for (int i = 0; i < dim_prec; i++) {
-	//	GMRF_vec[i] = GMRF_vec[i] + 1;
-	//}
 
 	return GMRF_vec;
 }
 
 //Cholesky decomposition Q = LL^T ad solution of L^T x = z. Outputs an Eigen::vector
-Eigen::VectorXd Chol_and_LTsol_eigen(int dim_grid, Eigen::SparseMatrix<double> Prec_Q) {
+Eigen::VectorXd Chol_and_LTsol_eigen(int DimGrid, Eigen::MatrixXd Prec_Q) {
 
-	int dim_prec = dim_grid * dim_grid;
+	int dim_prec = DimGrid * DimGrid;
 
 	//Sampling z from a standard multivariate normal distribution of size mu
-	Eigen::VectorXd z = SampleMND(dim_prec);
+	//Eigen::VectorXd z = SampleMND(dim_prec);
 
-	//Decomposition of Q = LL^T and solution of L^T x = z
-	Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Lower, Eigen::NaturalOrdering<int>> choleskyQ;
-	Eigen::VectorXd x = Prec_Q.triangularView<Eigen::Upper>().solve(z); //Solution of L^T x = z 
+	std::random_device rd;
+	std::mt19937 generator(rd());
+
+	Eigen::VectorXd z = Eigen::VectorXd::Zero(dim_prec);
+	for (int ind = 0; ind < dim_prec; ind++) {
+		std::normal_distribution < double > normal{ 0, 1 };
+		z(ind) = normal(generator);
+	}
+
+	Eigen::LLT<Eigen::MatrixXd> lltOfQ(Prec_Q);
+	Eigen::MatrixXd U = lltOfQ.matrixU();
+	Eigen::VectorXd x = U.colPivHouseholderQr().solve(z);
 
 	return x;
 }
@@ -306,17 +225,26 @@ Eigen::VectorXd Chol_and_LTsol_eigen(int dim_grid, Eigen::SparseMatrix<double> P
 
 
 //Cholesky decomposition Q = LL^T ad solution of L x = z. Outputs an Std::vector
-std::vector < double > Chol_and_Lsol( int dim_grid, Eigen::SparseMatrix<double> Prec_Q ) {
+std::vector < double > Chol_and_Lsol( int DimGrid, Eigen::MatrixXd Prec_Q ) {
 
-	int dim_prec = dim_grid * dim_grid;
+	int dim_prec = DimGrid * DimGrid;
 	std::vector < double > GMRF_vec( dim_prec, 0.0 );
 
 	//Sampling z from a standard multivariate normal distribution of size mu
-	Eigen::VectorXd z = SampleMND(dim_prec);
+	//Eigen::VectorXd z = SampleMND(dim_prec);
 
-	//Decomposition of Q = LL^T and solution of L x = z
-	Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Lower, Eigen::NaturalOrdering<int>> choleskyQ;
-	Eigen::VectorXd x = Prec_Q.triangularView<Eigen::Lower>().solve(z); //Solution of L x = z 
+	std::random_device rd;
+	std::mt19937 generator(rd());
+
+	Eigen::VectorXd z = Eigen::VectorXd::Zero(dim_prec);
+	for (int ind = 0; ind < dim_prec; ind++) {
+		std::normal_distribution < double > normal{ 0, 1 };
+		z(ind) = normal(generator);
+	}
+
+	Eigen::LLT<Eigen::MatrixXd> lltOfQ(Prec_Q);
+	Eigen::MatrixXd L = lltOfQ.matrixL();
+	Eigen::VectorXd x = L.colPivHouseholderQr().solve(z);
 
 	//creating an std::vector from Eigen::VectorXd
 	Eigen::Map<Eigen::VectorXd>(GMRF_vec.data(), dim_prec) = x;
@@ -326,30 +254,55 @@ std::vector < double > Chol_and_Lsol( int dim_grid, Eigen::SparseMatrix<double> 
 
 
 //Cholesky decomposition Q = LL^T ad solution of L x = z. Outputs an Eigen::vector
-Eigen::VectorXd Chol_and_Lsol_eigen(int dim_grid, Eigen::SparseMatrix<double> Prec_Q) {
+Eigen::VectorXd Chol_and_Lsol_eigen(int DimGrid, Eigen::MatrixXd Prec_Q) {
 
-	int dim_prec = dim_grid * dim_grid;
+	int dim_prec = DimGrid * DimGrid;
 
 	//Sampling z from a standard multivariate normal distribution of size mu
-	Eigen::VectorXd z = SampleMND(dim_prec);
+	//Eigen::VectorXd z = SampleMND(dim_prec);
 
-	//Decomposition of Q = LL^T and solution of L x = z
-	Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Lower, Eigen::NaturalOrdering<int>> choleskyQ;
-	Eigen::VectorXd x = Prec_Q.triangularView<Eigen::Lower>().solve(z); //Solution of L x = z 
+	std::random_device rd;
+	std::mt19937 generator(rd());
+
+	Eigen::VectorXd z = Eigen::VectorXd::Zero(dim_prec);
+	for (int ind = 0; ind < dim_prec; ind++) {
+		std::normal_distribution < double > normal{ 0, 1 };
+		z(ind) = normal(generator);
+	}
+
+	Eigen::LLT<Eigen::MatrixXd> lltOfQ(Prec_Q);
+	Eigen::MatrixXd L = lltOfQ.matrixL();
+	Eigen::VectorXd x = L.colPivHouseholderQr().solve(z);
 
 	return x;
 }
 
 
 
-//creates a patition Q_AA of the (sparse) precision matrix Q for the elements in the set A
-Eigen::SparseMatrix<double> Q_AA(std::vector < double > A, Eigen::SparseMatrix<double> Prec_Q) {
-	int dim_A = A.size();
-	Eigen::SparseMatrix<double> QAA(dim_A, dim_A);
-	QAA.reserve(Eigen::VectorXi::Constant(dim_A, dim_A));
-	for (int i = 0; i < dim_A; i++) {
-		for (int j = 0; j < dim_A; j++) {
-			QAA.coeffRef(i, j) = Prec_Q.coeffRef(A[i], A[j]);
+//creates a patition Q_AA of the precision matrix Q 
+//for the unobserved elements. Vector b contains the indexes of the observed elements.
+Eigen::MatrixXd Q_AA(std::vector < double > b, Eigen::MatrixXd Prec_Q) {
+	
+	int dim_b = b.size();
+	//creates a vector a with the indexes of the unobserved elements	
+	int dim_a = sqrt(Prec_Q.size()) - dim_b;
+	std::vector < double > v;
+	for (int i = 0; i < sqrt(Prec_Q.size()); i++) {
+		v.push_back(i);
+	}
+	//creates a vector a with the elements of v that are not in b
+	std::vector < double > a;
+	std::remove_copy_if(v.begin(), v.end(), std::back_inserter(a),
+		[&b](const int& arg)
+	{ return (std::find(b.begin(), b.end(), arg) != b.end()); });
+
+	Eigen::MatrixXd QAA = Eigen::MatrixXd::Zero(dim_a, dim_a);
+
+	for (int i = 0; i < dim_a; i++) {
+		for (int j = 0; j < dim_a; j++) {
+			int l = a[i];
+			int m = a[j];
+			QAA(i, j) = Prec_Q(l, m);
 		}
 	}
 	return QAA;
@@ -358,31 +311,62 @@ Eigen::SparseMatrix<double> Q_AA(std::vector < double > A, Eigen::SparseMatrix<d
 
 
 
-//creates a patition Q_AB of the (sparse) precision matrix Q
-Eigen::SparseMatrix<double> Q_AB(std::vector < double > B, Eigen::SparseMatrix<double> Prec_Q) {
-	//creates a vector v of increasing integers from 1 to the square root of the precision matrix
-	int dim_B = B.size();
-	int max_val = sqrt(Prec_Q.size());
-	int dim_A = max_val - dim_B;
-	std::vector < double > A;
-	std::vector < double > v( max_val, 0 );
-	for ( int i = 0; i < max_val; i++ ) {
-		v[i] = i;
+//creates a patition Q_AB of the precision matrix Q
+//Vector b contains the indexes of the observed elements.
+Eigen::MatrixXd Q_AB(std::vector < double > b, Eigen::MatrixXd Prec_Q) {
+
+	int dim_b = b.size();
+	//creates a vector a with the indexes of the unobserved elements	
+	int dim_a = sqrt(Prec_Q.size()) - dim_b;
+	std::vector < double > v;
+	for (int i = 0; i < sqrt(Prec_Q.size()); i++) {
+		v.push_back(i);
 	}
-	//creates a vector A with the elements of v that are not in B
-	std::remove_copy_if( v.begin(), v.end(), std::back_inserter(A), 
-		[&B](const int& arg )
-	{ return ( std::find( B.begin(), B.end(), arg ) != B.end() ); } );
+	//creates a vector a with the elements of v that are not in b
+	std::vector < double > a;
+	std::remove_copy_if(v.begin(), v.end(), std::back_inserter(a),
+		[&b](const int& arg)
+	{ return (std::find(b.begin(), b.end(), arg) != b.end()); });
 	//creates the partition Q_AB
-	Eigen::SparseMatrix < double > QAB(dim_A, dim_B);
-	QAB.reserve(Eigen::VectorXi::Constant(dim_B, 9));
-	for (int i = 0; i < dim_B; i++) {
-		for (int j = 0; j < dim_A; j++) {
-			QAB.coeffRef(j, i) = Prec_Q.coeffRef(A[j], B[i]);
+	Eigen::MatrixXd QAB = Eigen::MatrixXd::Zero(dim_a, dim_b);
+	for (int i = 0; i < dim_a; i++) {
+		for (int j = 0; j < dim_b; j++) {
+			int l = b[j];
+			int m = a[i];
+			QAB(i, j) = Prec_Q(m, l);
 		}
 	}
 	return QAB;
 }
+
+//sample from conditional x_A | x_B
+Eigen::VectorXd XAcondXB (Eigen::MatrixXd QA, Eigen::MatrixXd QB, Eigen::VectorXd XB) {
+	std::random_device rd;
+	std::mt19937 generator(rd());
+	//calcualate mean
+	Eigen::VectorXd mean = QB * XB;
+	//solve L w = mean
+	Eigen::LLT<Eigen::MatrixXd> lltOfQA(QA);
+	Eigen::MatrixXd L = lltOfQA.matrixL();
+	Eigen::VectorXd w = L.colPivHouseholderQr().solve(mean);
+	//solve LT mu = w
+	Eigen::MatrixXd U = lltOfQA.matrixU();
+	Eigen::VectorXd mu = U.colPivHouseholderQr().solve(w);
+	//sample from normal distribution
+	int dim_QA = sqrt(QA.size());
+	Eigen::VectorXd z = Eigen::VectorXd::Zero(dim_QA);
+	for (int ind = 0; ind < dim_QA; ind++) {
+		std::normal_distribution < double > normal{ 0, 1 };
+		z(ind) = normal(generator);
+	}
+	//compute LT v = z
+	Eigen::VectorXd v = U.colPivHouseholderQr().solve(z);
+	//compute x = mu + v
+	Eigen::VectorXd samp_x = mu + v;
+
+	return samp_x;
+}
+
 
 
 

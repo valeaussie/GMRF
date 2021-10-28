@@ -41,7 +41,7 @@ int main() {
 	GMRF_obs(); //simulate the state of the observations
 
 	
-	int n = 1000; //number of particles
+	int n = 10000; //number of particles
 
 
 	//define the container for the sampled particles 
@@ -86,13 +86,6 @@ int main() {
 		}
 	}
 
-	/*
-	//initialise for evolving system:
-	for (int i = 0; i < n; i++) {
-		un_weights[i][0] = 1; //set equal weights at time 1
-		weights[i][0] = 1.0 / n; //normalise the weights
-		resampled[0][0][i] = X[0];
-	}*/
 
 	//typecast X into eigen
 	int X_size = X.size();
@@ -100,7 +93,7 @@ int main() {
 	Eigen::Map<Eigen::VectorXd> X_eigen(ptr3, X_size);
 
 	
-	std::vector < double > neigh_obs{0};
+	
 	//Iterate:
 	for (int j = 1; j < steps; j++) {
 		int o = P[j]; // index of observed elements at time j
@@ -110,103 +103,7 @@ int main() {
 			obs_now.push_back(P[l]);
 		}
 
-		/*
-		//for an evolving system:
-
-		//add the observe element at this iteration
-		//to the vector of observed elements
-		neigh_obs.push_back(o);
-		//generate vector of indexes for the neighbours of the newly observed element
-		std::vector < double > neigh_unobs;
-		for (int qi = 0; qi < sqrt(Q.size()); qi++) {
-			if (Q(o, qi) == -1) {
-				neigh_unobs.push_back(qi);
-			}
-		}
-		//remove already observed or symulated points
-		std::vector < double > toremove;
-		toremove.push_back(o);
-		for (int k = 0; k < neigh_obs.size(); k++) {
-			toremove.push_back(neigh_obs[k]);
-		}
-		remove_intersection(neigh_unobs, toremove);
-		//create a vector with all non zero elements (all the observed or simulated one)
-		std::vector < double > all_non_zero;
-		all_non_zero.insert(all_non_zero.end(), neigh_obs.begin(), neigh_obs.end());
-		all_non_zero.insert(all_non_zero.end(), neigh_unobs.begin(), neigh_unobs.end());
-		sort(all_non_zero.begin(), all_non_zero.end());
-		remove_duplicates(all_non_zero);
-		//create a vector with the idenxes of the observed (in the new matrix)
-		std::vector < double > new_neigh_obs;
-		for (double n = 0; n < all_non_zero.size(); n++) {
-			if (std::find(neigh_obs.begin(), neigh_obs.end(), all_non_zero[n]) != neigh_obs.end()) {
-				new_neigh_obs.push_back(n); 
-			}
-		}
-		//create a vector with the idenxes of the unobserved (in the new matrix)
-		std::vector < double > new_neigh_unobs;
-		for (double n = 0; n < all_non_zero.size(); n++) {
-			if (std::find(neigh_unobs.begin(), neigh_unobs.end(), all_non_zero[n]) != neigh_unobs.end()) {
-				new_neigh_unobs.push_back(n);
-			}
-		}
 		
-		std::cout << "all non zero" << std::endl;
-		F_print_vector(all_non_zero);
-		std::cout << "neigh obs" << std::endl;
-		F_print_vector(neigh_obs);
-		std::cout << "neigh unobs" << std::endl;
-		F_print_vector(neigh_unobs);
-		std::cout << "new neigh obs" << std::endl;
-		F_print_vector(new_neigh_obs);
-		std::cout << "new neigh unobs" << std::endl;
-		F_print_vector(new_neigh_unobs);
-		
-
-		std::vector < double > all_elements;
-		for (int i = 0; i < sqrt(Q.size()); i++) {
-			all_elements.push_back(i);
-		}
-		//creates a vector a with the indexes of the elements yet to be observed
-		std::vector < double > zero_elements;
-		std::remove_copy_if(all_elements.begin(), all_elements.end(), std::back_inserter(zero_elements),
-			[&all_non_zero](const int& arg)
-		{ return (std::find(all_non_zero.begin(), all_non_zero.end(), arg) != all_non_zero.end()); });
-		std::cout << "zero_elements" << std::endl;
-		F_print_vector(zero_elements);
-		//create the matrices
-		Eigen::MatrixXd Qreduced = Q_AA(zero_elements, Q);
-		Eigen::MatrixXd Qaa = Q_AA(new_neigh_unobs, Qreduced);
-		Eigen::MatrixXd Qab = Q_AB(new_neigh_unobs, Qreduced);	
-		//create the vector with the observed elements
-		std::vector < double > XB;
-		for (int i : new_neigh_unobs) {
-			XB.push_back(X[i]);
-		}
-		//typecast new_neigh_obs into eigen
-		int new_neigh_unobs_size = new_neigh_unobs.size();
-		double* ptr7 = &new_neigh_unobs[0];
-		Eigen::Map<Eigen::VectorXd> new_neigh_unobs_eigen(ptr7, new_neigh_unobs_size);
-		//sample from conditional
-		Eigen::VectorXd samp_x = XAcondXB(Qaa, Qab, new_neigh_unobs_eigen);
-		
-		std::cout << "Qreduced" << std::endl;
-		std::cout << Qreduced << std::endl;
-		std::cout << "Qaa" << std::endl;
-		std::cout << Qaa << std::endl;
-		std::cout << "Qab" << std::endl;
-		std::cout << Qab << std::endl;
-		std::cout << "XB" << std::endl;
-		F_print_vector(XB);
-		std::cout << "samp_x" << std::endl;
-		std::cout << samp_x << std::endl;
-		
-		//populate neigh_obs for the next step
-		for (int k = 0; k < neigh_unobs.size(); k++) {
-			neigh_obs.push_back(neigh_unobs[k]);
-		}
-		remove_duplicates(neigh_obs);
-		*/
 
 		//populate resampled
 		for (int i = 0; i < n; i++) {
@@ -214,11 +111,6 @@ int main() {
 			for (int k = 0; k < dim_prec; k++) {
 				resampled[j][k][i] = resampled[j - 1][k][i];
 			}
-			/*
-			//populated resampled with newly sampled and observed elements
-			for (int k = 0; k < new_neigh_obs.size(); k++) {
-				resampled[j][new_neigh_obs[k]][i] = samp_x(k);
-			}*/
 		}
 
 		//make corrections	
@@ -226,6 +118,7 @@ int main() {
 			resampled[j][o][i] = X[o];
 		}
 
+		std::vector < double > vec_logw;
 		//calculate weights
 		for (int i = 0; i < n; i++) {
 			//fill vector sim
@@ -233,7 +126,7 @@ int main() {
 			for (int k = 0; k < dim_prec; k++) {
 				sim(k) = resampled[j - 1][k][i]; //populate Eigen::vector sim
 			}
-			
+			/*
 			//calculate weights for particle i at time j
 			double Xosqr = pow(X_eigen(o), 2);
 			double Simosqr = pow(sim(o), 2);
@@ -243,8 +136,26 @@ int main() {
 				( ( Q.row(o) * sim - simo * Q(o,o) ) * ( simo - Xo)
 				+  0.5 * Q(o,o) * ( Simosqr - Xosqr )  )
 			);
-			un_weights[i][j] = w; 
+			*/
+			//calculate weights for particle i at time j
+			double Xosqr = pow(X_eigen(o), 2);
+			double Simosqr = pow(sim(o), 2);
+			double Xo = X_eigen(o);
+			double simo = sim(o);
+			double logw = ((Q.row(o) * sim - simo * Q(o, o)) * (simo - Xo)
+					+ 0.5 * Q(o, o) * (Simosqr - Xosqr)
+			);
+			vec_logw.push_back(logw);
+
+			//un_weights[i][j] = w; 
 		}
+		double maxws = *max_element(std::begin(vec_logw), std::end(vec_logw));
+		for (int i = 0; i < n; i++) {
+			double w = exp(vec_logw[i] - maxws);
+			un_weights[i][j] = w;
+		}
+		vec_logw.clear();
+
 
 		//normalise the weights
 		double sum_of_weights{ 0 };
@@ -259,7 +170,7 @@ int main() {
 		//resampling
 		std::vector < double > drawing_vector(n, 0.0);
 		for (int i = 0; i < n; i++) {
-			drawing_vector[i] = un_weights[i][j];
+			drawing_vector[i] = weights[i][j];
 		}			
 		double index_resampled;
 		std::vector < int > vec_index;
@@ -279,7 +190,7 @@ int main() {
 				resampled[j][k][i] = newmatrix[k][i];
 			}
 		}
-		
+		/*
 		//add jitter
 		std::normal_distribution< double > nor(0,0.1);
 		for (int i = 0; i < n; i++) {
@@ -287,6 +198,7 @@ int main() {
 				resampled[j][k][i] = resampled[j][k][i] + nor(generator);
 			}
 		}
+		*/
 	}
 
 	

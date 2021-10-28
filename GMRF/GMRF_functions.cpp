@@ -75,7 +75,7 @@ void remove_intersection(std::vector<double>& a, std::vector<double>& b) {
 //creates the precision matrix (sparse) for any value of the dimension of the grid
 Eigen::MatrixXd Precision(int dim_grid) {
 
-	float param_delta = 0.01;
+	float param_delta = 1;
 
 	int dim_prec = dim_grid * dim_grid;
 	Eigen::MatrixXd Q = Eigen::MatrixXd::Zero(dim_prec, dim_prec);
@@ -106,29 +106,29 @@ Eigen::MatrixXd Precision(int dim_grid) {
 			if (i == 0) {
 				Q(i, i + 1) = -1;
 				Q(i, i + dim_grid) = -1;
-				Q(i, i + dim_grid - 1) = -1; // circular
-				Q(i, dim_prec - dim_grid) = -1; // circular
+				Q(i, i + dim_grid - 1) = -1; // circulant
+				Q(i, dim_prec - dim_grid) = -1; // circulant
 			}
 			// top right corner
 			if (i == dim_grid - 1) {
 				Q(i, i - 1) = -1;
 				Q(i, i + dim_grid) = -1;
-				Q(i, dim_grid - 1 - i) = -1; // circular
-				Q(i, dim_prec - 1) = -1; // circular
+				Q(i, dim_grid - 1 - i) = -1; // circulant
+				Q(i, dim_prec - 1) = -1; // circulant
 			}
 			// bottom right corner
 			if (i == dim_prec - 1) {
 				Q(i, i - 1) = -1;
 				Q(i, i - dim_grid) = -1;
-				Q(i, i - dim_grid + 1) = -1; // circular
-				Q(i, dim_grid - 1) = -1; // circular
+				Q(i, i - dim_grid + 1) = -1; // circulant
+				Q(i, dim_grid - 1) = -1; // circulant
 			}
 			//bottom left corner
 			if (i == dim_prec - dim_grid) {
 				Q(i, i + 1) = -1;
 				Q(i, i - dim_grid) = -1;
-				Q(i, i + dim_grid - 1) = -1; // circular
-				Q(i, 0) = -1; // circular
+				Q(i, i + dim_grid - 1) = -1; // circulant
+				Q(i, 0) = -1; // circulant
 			}
 			for (int k = 1; k < dim_grid - 1; k++) {
 				// top side
@@ -136,13 +136,13 @@ Eigen::MatrixXd Precision(int dim_grid) {
 					Q(i, i - 1) = -1;
 					Q(i, i + 1) = -1;
 					Q(i, i + dim_grid) = -1;
-					Q(i, (dim_prec - dim_grid) + i) = -1; // circular
+					Q(i, (dim_prec - dim_grid) + i) = -1; // circulant
 				}
 				// right side
 				if (i == (k + 1) * dim_grid - 1) {
 					Q(i, i - 1) = -1;
 					Q(i, i - dim_grid) = -1;
-					Q(i, i - dim_grid + 1) = -1; // circular
+					Q(i, i - dim_grid + 1) = -1; // circulant
 					Q(i, i + dim_grid) = -1;
 				}
 				// bottom side
@@ -150,13 +150,13 @@ Eigen::MatrixXd Precision(int dim_grid) {
 					Q(i, i - 1) = -1;
 					Q(i, i + 1) = -1;
 					Q(i, i - dim_grid) = -1;
-					Q(i, dim_grid - k - 1) = -1; // circular
+					Q(i, dim_grid - k - 1) = -1; // circulant
 				}
 				// left side
 				if (i == dim_prec - (k + 1) * dim_grid) {
 					Q(i, i + 1) = -1;
 					Q(i, i - dim_grid) = -1;
-					Q(i, i + dim_grid - 1) = -1; // circular
+					Q(i, i + dim_grid - 1) = -1; // circulant
 					Q(i, i + dim_grid) = -1;
 				}
 			}
